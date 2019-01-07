@@ -6,6 +6,6 @@ find_package(LibXml2 REQUIRED)
 
 
 
-add_executable(CVATXMLParser main.cpp structures.cpp)
+add_executable(CVATXMLParser main.cpp CVATXMLParser.cpp)
 
 target_link_libraries(CVATXMLParser ${LIBXML2_LIBRARIES})

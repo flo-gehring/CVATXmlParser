@@ -1,7 +1,7 @@
 #CLion / Idea Stuff
 .idea/*
 cmake-build-debug/*
-
+bin/*
 
 # Prerequisites
 *.d

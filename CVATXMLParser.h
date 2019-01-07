@@ -62,11 +62,10 @@ namespace cvatp {
         unsigned long frameNumber;
         bool outside, occluded, keyframe;
         // std::vector<attributes> attributes;
-        explicit AnnotationObject(xmlNodePtr nodePtr);
+        explicit  AnnotationObject(xmlNodePtr nodePtr);
         OBJECT_TYPE type;
 
-
-
+        virtual ~AnnotationObject() = default;
     };
 
     class box : public AnnotationObject{
@@ -88,9 +87,27 @@ namespace cvatp {
 
     public:
         std::vector<AnnotationObject *> annotatedObjects;
-        std::vector<box> boxes;
+        std::vector<box *> boxes;
+        std::vector<polygon *> polygons;
         void parseTrack(xmlNodePtr nodePtr);
-        void parseBoxes(xmlNodePtr nodePtr);
+
+    };
+
+    enum ANNOTATION_TYPE {
+        ANNOTATION,
+        INTERPOLATION
+    };
+    class CVATXML{
+
+    public:
+        ANNOTATION_TYPE annotationType;
+        CVATXML(const char * filename, ANNOTATION_TYPE type);
+        void parse();
+        xmlDocPtr doc;
+
+        std::vector<track> tracks;
+
+        ~CVATXML();
 
     };
 
