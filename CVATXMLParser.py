@@ -5,6 +5,7 @@ from copy import deepcopy
 import json
 import csv
 
+import argparse
 
 class Track:
         def __init__(self):
@@ -191,20 +192,46 @@ def parse_node(node):
 
 
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-f", '--informat', help="Specify the format you want to Convert. "
+                                              "Default: CVATXML, other option: MOT17",
+                        default="CVATXML",
+                        type=str)
+    parser.add_argument("-t", "--outformat", help="Format to convert to. Default: MOT17, other option: SLOTH",
+                        default="MOT17",
+                        type=str)
+    parser.add_argument("-o", "--outfile", help="Path to your outputfile. If not given, "
+                                                "output is printed to the console.", default='')
 
-# Get Ground Truth from CVAT
-gtDoc = CVATDocument('2_TS_10_05.xml')
-gtDoc.parse()
-gtDoc.to_sloth_format(groundtruth=True, output_path='groundtruth.json')
-
-# Get tracking results Doc
-
-trDoc = CVATDocument()
-trDoc.MOT_to_CVAT_parsetree('trackingResult_ts_10_05.txt')
-trDoc.to_sloth_format(output_path='hypotheses.json')
+    parser.add_argument("-g", "--gt", help="When printing to SLOTH Format: Is given File Groundtruth",
+                        type=bool, default=False)
 
 
-#doc.to_format("MOT17", 'asdf.txt')
+    parser.add_argument("infile", help="Path to the file you want to convert")
 
-# doc.MOT_to_CVAT_parsetree('trackingResult_ts_10_05.txt')
-#doc.to_format("MOT17", '2_.txt')
+    args = parser.parse_args()
+
+    doc = None
+
+    print("InputFile: ", args.infile )
+    print("Input Format: " , args.informat)
+
+    print("Output File: " , args.outfile )
+    print("Output Fomrat" , args.outformat)
+    print("Groundtruth", args.gt)
+
+    if args.infile is not None:
+        if args.informat == 'CVATXML':
+            doc = CVATDocument(args.infile)
+            doc.parse()
+        elif args.informat in ['2D MOT 2015', "MOT16", "PETS2017", "MOT17"]\
+                or args.informat == "MOT17":
+            doc = CVATDocument()
+            doc.MOT_to_CVAT_parsetree(args.infile)
+
+        if args.outformat  in ["2D MOT 2015", "MOT16", "PETS2017", "MOT17"]:
+            doc.to_format(args.outformat, args.outfile)
+
+        elif args.outformat == "SLOTH":
+            doc.to_sloth_format(groundtruth=args.gt, output_path=args.outfile)
