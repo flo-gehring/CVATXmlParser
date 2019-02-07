@@ -1,16 +1,15 @@
-#! /usr/bin/python3.6
+#! /usr/bin/python
 
 import xml.etree.ElementTree as ET
 from copy import deepcopy
 import json
 import csv
-
+from os import linesep
 import argparse
 
 class Track:
         def __init__(self):
                 self.tracked_elements = dict()
-
 
 class Box:
         def __init__(self, xml_node=None):
@@ -66,7 +65,7 @@ class CVATDocument:
         1, 8, 875.49, 399.98, 95.303, 233.93, -1, -1, -1, -1
         """
 
-        def to_format(self, format_id, filepath=''):
+        def to_format(self, format_id, filepath='',  dets_only = False, include_occluded = True):
             output_file = None
             if not filepath == '':
                 output_file = open(filepath, "w")
@@ -77,23 +76,60 @@ class CVATDocument:
                                 for track in self.tracks:
                                         if frame in track.tracked_elements:
                                                 frame_info = track.tracked_elements[frame].attributes
-                                                bb_left = float(frame_info['xtl'])
-                                                bb_top = float(frame_info['ytl'])
-                                                bb_width = float(frame_info['xbr']) - bb_left
-                                                bb_height = float(frame_info['ybr']) - bb_top
 
-                                                formatted_line = "{0}, {1}, {2}, {3}, {4}, " \
-                                                                 "{5}, {6}, {7}, {7}, {7} \n".format(
-                                                                        frame,         
-                                                                        #-1,
-                                                                        self.tracks.index(track),
-                                                                        bb_left, bb_top, bb_width,
-                                                                        bb_height, 0, -1)
+                                                if include_occluded or not bool(frame_info['occluded']):
 
-                                                if output_file is not None:
-                                                        output_file.write(formatted_line)
+                                                    bb_left = float(frame_info['xtl'])
+                                                    bb_top = float(frame_info['ytl'])
+                                                    bb_width = float(frame_info['xbr']) - bb_left
+                                                    bb_height = float(frame_info['ybr']) - bb_top
+                                                    bb_occluded = frame_info['occluded'] == "1"
 
-                                                print(formatted_line)
+                                                    formatted_line = "{0}, {1}, {2}, {3}, {4}, " \
+                                                                     "{5}, {6}, {7}, {7}, {7} \n".format(
+                                                                            frame,
+                                                                            -1 if dets_only else self.tracks.index(track),
+                                                                            bb_left, bb_top, bb_width,
+                                                                            bb_height, int( not bb_occluded), -1)
+
+                                                    if output_file is not None:
+                                                            output_file.write(formatted_line)
+                                                    else:
+                                                        print(formatted_line)
+
+
+        def to_mot16_gt(self, filepath=''):
+            output_file = None
+            if not filepath == '':
+                output_file = open(filepath, "w")
+            for track in self.tracks:
+                track_id = self.tracks.index(track)
+                for frame in range(0, (self.max_frame + 1)):
+                    if frame in track.tracked_elements:
+
+                        frame_info = track.tracked_elements[frame].attributes
+                        bb_left = float(frame_info['xtl'])
+                        bb_top = float(frame_info['ytl'])
+                        bb_width = float(frame_info['xbr']) - bb_left
+                        bb_height = float(frame_info['ybr']) - bb_top
+
+                        bb_occluded = frame_info['occluded'] == "1"
+
+                        formatted_line = "{0}, {1}, {2}, {3}, {4}, " \
+                                         "{5}, {6}, {7}, {7}, {7} \n".format(
+                            frame,
+                            track_id,
+                            bb_left,
+                            bb_top,
+                            bb_width,
+                            bb_height,
+                            0 if bb_occluded else 1,
+                            1)
+                        if output_file is not None:
+                            output_file.write(formatted_line)
+                        else:
+                            print(formatted_line)
+
 
         def to_sloth_format(self, groundtruth = False, output_path=''):
 
@@ -192,6 +228,35 @@ def parse_node(node):
 
 
 
+
+def my_json_to_mot_16_dets(json_filepath, outpath):
+
+    json_file = open(json_filepath)
+    rep = json.load(json_file)
+
+    out_file = open(outpath, "w")
+
+    line_format= "{0}, -1, {1}, {2}, {3}, {4},  1, -1, -1, -1" + linesep
+
+    for frame in rep:
+        frame_num = frame["frame"]
+
+        for detection in frame["detections"]:
+
+            x = detection["x"]
+            y = detection["y"]
+            width = detection["width"]
+            height = detection["height"]
+
+            formatted_line = line_format.format(frame_num, x, y, width, height)
+
+            out_file.write(formatted_line)
+
+
+
+
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-f", '--informat', help="Specify the format you want to Convert. "
@@ -206,6 +271,9 @@ if __name__ == "__main__":
 
     parser.add_argument("-g", "--gt", help="When printing to SLOTH Format: Is given File Groundtruth",
                         type=bool, default=False)
+
+    parser.add_argument("--mgt", help="MOT Ground Truth erstellen", action="store_true")
+
 
 
     parser.add_argument("infile", help="Path to the file you want to convert")
@@ -231,7 +299,37 @@ if __name__ == "__main__":
             doc.MOT_to_CVAT_parsetree(args.infile)
 
         if args.outformat  in ["2D MOT 2015", "MOT16", "PETS2017", "MOT17"]:
-            doc.to_format(args.outformat, args.outfile)
+            doc.to_format(args.outformat, args.outfile, dets_only=args.mgt)
 
         elif args.outformat == "SLOTH":
             doc.to_sloth_format(groundtruth=args.gt, output_path=args.outfile)
+
+
+from os import linesep
+def convert_for_mm(filepath):
+
+    f = open(filepath, "r")
+    output = open(filepath + ".csv", "w")
+    csvfile = csv.reader(f, delimiter=',')
+    writelines = list()
+    for line in csvfile:
+
+        outstring = "\t".join((line[0:6]).append([ 1, 1, line[6], 0]))
+
+
+
+
+"""
+from: 
+0, 6, 2721.48, 959.03, 17.84, 57.84, 1, -1, -1, -1 
+0, 7, 2884.45, 955.79, 14.05, 44.59, 1, -1, -1, -1
+
+to: 
+
+      names=['FrameId', 'Id', 'X', 'Y', 'Width', 'Height', 'Confidence', 'ClassId', 'Visibility', 'unused'], 
+
+"""
+
+
+
+
